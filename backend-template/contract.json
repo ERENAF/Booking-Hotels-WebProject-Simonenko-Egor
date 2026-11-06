@@ -4,13 +4,19 @@
   "id_field": "id",
   "missing_id": "999999",
   "list_key": null,
-  "create": { "room_number": "101", "room_type":"double","price_per_night": 4500},
+  "create": { "room_number": "101", "room_type": "double", "price_per_night": 4500 },
   "update": { "price_per_night": 5000 },
   "required_field": "room_number",
-  "errors":[
+  "errors": [
     { "body": { "room_number": "", "room_type": "double", "price_per_night": 4500 }, "field": "room_number" },
     { "body": { "room_number": "102", "room_type": "penthouse", "price_per_night": 4500 }, "field": "room_type" },
     { "body": { "room_number": "103", "room_type": "double", "price_per_night": -1 }, "field": "price_per_night" }
   ],
-  "filter": { "param": "room_type", "value": "double", "other": "suite" }
+  "filter": { "param": "room_type", "value": "double", "other": "suite" },
+  "text_field": "room_number",
+  "child": {
+    "resource": "bookings",
+    "create": { "guest_name": "Иванов", "check_in": "2026-10-01", "check_out": "2026-10-05" },
+    "parent_field": "room_id"
+  }
 }

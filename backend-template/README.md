@@ -48,14 +48,19 @@
 
 ```mermaid
 erDiagram
-    parents ||--o{ children : "имеет"
-    parents {
+    rooms ||--o{ bookings : "имеет"
+    rooms {
         int id PK
-        varchar title
+        varchar room_number
+        varchar room_type
+        float price_per_night
     }
-    children {
+    bookings {
         int id PK
-        int parent_id FK
+        int room_id FK
+        varchar guest_name
+        date check_in
+        date check_out
     }
 ```
 

@@ -1,9 +1,49 @@
 from flask import Blueprint, request, jsonify
-from . import store
-
+from sqlalchemy import select
+from . import db
+from .models import Room, Booking
+from datetime import date
 bp = Blueprint("api", __name__)
 
 ROOM_TYPES = {"single", "double", "suite"}
+
+def _parse_date(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+def _validate_booking(data, partial=False):
+    cleaned = {}
+
+    if "guest_name" in data or not partial:
+        v = data.get("guest_name")
+        if not isinstance(v, str) or not v.strip():
+            return None, ("guest_name", "guest_name must be a non-empty string")
+        cleaned["guest_name"] = v.strip()
+
+    if "check_in" in data or not partial:
+        check_in = _parse_date(data.get("check_in"))
+        if check_in is None:
+            return None, ("check_in", "check_in must be a date in YYYY-MM-DD format")
+        cleaned["check_in"] = check_in
+
+    if "check_out" in data or not partial:
+        check_out = _parse_date(data.get("check_out"))
+        if check_out is None:
+            return None, ("check_out", "check_out must be a date in YYYY-MM-DD format")
+        cleaned["check_out"] = check_out
+
+    if partial and not cleaned:
+        return None, (None, "no valid fields to update")
+
+    if "check_in" in cleaned and "check_out" in cleaned:
+        if cleaned["check_out"] <= cleaned["check_in"]:
+            return None, ("check_out", "check_out must be after check_in")
+
+    return cleaned, None
 
 def _validate(data, partial= False):
     cleaned = {}
@@ -33,16 +73,18 @@ def health():
 @bp.post("/api/rooms")
 def create_room():
     data = request.get_json(silent=True)
-    if data is None:
-        return {"error": "invalid JSON", "field": None}, 400
-    if not isinstance(data, dict):
-        return {"error": "request body must be a JSON object", "field": None}, 400
-    cleaned, err = _validate(data, partial=False)
+    if not isinstance(data,dict):
+        return {"error":"request body must be a JSON object", "field":None},400
+
+    cleaned,err = _validate(data)
     if err:
-        field, msg = err
-        return {"error": msg, "field": field}, 400
-    room = store.create_room(cleaned)
-    return room, 201
+        field,msg = err
+        return {"error":msg,"field":field},400
+
+    room = Room(**cleaned)
+    db.session.add(room)
+    db.session.commit()
+    return room.to_dict(),201
 
 @bp.get("/api/rooms")
 def list_rooms():
@@ -55,35 +97,130 @@ def list_rooms():
     if limit < 0 or offset < 0:
         return {"error": "limit and offset must be >= 0", "field": None}, 400
 
-    items = store.list_rooms(room_type=room_type)
-    items = items[offset:offset + limit]
-    return jsonify(items), 200
+    stmt = select(Room)
+    if room_type is not None:
+        stmt = stmt.where(Room.room_type == room_type)
+    stmt = stmt.order_by(Room.id).offset(offset).limit(limit)
+
+    rooms = db.session.execute(stmt).scalars().all()
+
+    return jsonify([r.to_dict() for r in rooms]),200
 
 @bp.get("/api/rooms/<int:room_id>")
 def get_room(room_id):
-    room = store.get_room(room_id)
+    room = db.session.get(Room,room_id)
+
     if room is None:
         return {"error": "room not found", "field": None}, 404
-    return room, 200
+    return room.to_dict(), 200
 
 @bp.patch("/api/rooms/<int:room_id>")
 def patch_room(room_id):
     data = request.get_json(silent=True)
-    if data is None:
-        return {"error": "invalid JSON", "field": None}, 400
+
     if not isinstance(data, dict):
         return {"error": "request body must be a JSON object", "field": None}, 400
     cleaned, err = _validate(data, partial=True)
     if err:
         field, msg = err
         return {"error": msg, "field": field}, 400
-    room = store.update_room(room_id, cleaned)
+    room = db.session.get(Room,room_id)
     if room is None:
         return {"error": "room not found", "field": None}, 404
-    return room, 200
+    for key,value in cleaned.items():
+        setattr(room,key,value)
+    db.session.commit()
+    return room.to_dict(), 200
 
 @bp.delete("/api/rooms/<int:room_id>")
 def delete_room(room_id):
-    if not store.delete_room(room_id):
+    room = db.session.get(Room, room_id)
+    if room is None:
         return {"error": "room not found", "field": None}, 404
+
+    db.session.delete(room)
+    db.session.commit()
+    return "", 204
+
+@bp.post("/api/rooms/<int:room_id>/bookings")
+def post_booking(room_id):
+    room = db.session.get(Room,room_id)
+
+    if room is None:
+        return {"error": "room not found","field":None},404
+
+    data = request.get_json(silent=True)
+
+    if not isinstance(data,dict):
+        return {"error": "request body must be a JSON object", "field": None}, 400
+
+    cleaned, err = _validate_booking(data)
+    if err:
+        field, msg = err
+        return {"error": msg, "field": field}, 400
+
+    booking = Booking(room_id=room_id, **cleaned)
+    db.session.add(booking)
+    db.session.commit()
+    return booking.to_dict(), 201
+
+@bp.get("/api/bookings/<int:booking_id>")
+def get_booking(booking_id):
+    data = db.session.get(Booking, booking_id)
+
+    if data is None:
+        return {"error": "booking not found", "field": None}, 404
+
+    return data.to_dict(),200
+
+@bp.get("/api/rooms/<int:room_id>/bookings")
+def list_bookings(room_id):
+    room = db.session.get(Room,room_id)
+
+    if room is None:
+        return {"error": "room not found","field":None},404
+
+    bookings = db.session.execute(
+        select(Booking)
+        .where(Booking.room_id == room_id)
+        .order_by(Booking.check_in)
+    ).scalars().all()
+
+    return jsonify([b.to_dict() for b in bookings]),200
+
+@bp.patch("/api/bookings/<int:booking_id>")
+def patch_booking(booking_id):
+    booking = db.session.get(Booking, booking_id)
+    if booking is None:
+        return {"error": "booking not found", "field": None}, 404
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"error": "request body must be a JSON object", "field": None}, 400
+
+    cleaned, err = _validate_booking(data, partial=True)
+    if err:
+        field, msg = err
+        return {"error": msg, "field": field}, 400
+
+    new_check_in = cleaned.get("check_in", booking.check_in)
+    new_check_out = cleaned.get("check_out", booking.check_out)
+    if new_check_out <= new_check_in:
+        return {"error": "check_out must be after check_in", "field": "check_out"}, 400
+
+    for key, value in cleaned.items():
+        setattr(booking, key, value)
+    db.session.commit()
+    return booking.to_dict(), 200
+
+
+@bp.delete("/api/bookings/<int:booking_id>")
+def delete_booking(booking_id):
+    booking = db.session.get(Booking, booking_id)
+
+    if booking is None:
+        return {"error": "booking not found", "field": None}, 404
+
+    db.session.delete(booking)
+    db.session.commit()
     return "", 204
