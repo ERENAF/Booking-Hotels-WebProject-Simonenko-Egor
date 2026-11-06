@@ -8,37 +8,57 @@
 GET {{base}}/health
 
 ### Создать
-POST {{base}}/api/items
+POST {{base}}/api/rooms
 Content-Type: application/json
 
-{ "title": "Первая запись" }
+{ "room_number": "101", "room_type": "double", "price_per_night": 4500 }
 
 ### Список
-GET {{base}}/api/items
+GET {{base}}/api/rooms
 
-### Получить одну запись
-GET {{base}}/api/items/1
+### Список с пагинацией
+GET {{base}}/api/rooms?limit=10&offset=0
 
-### Изменить
-PATCH {{base}}/api/items/1
+### Список с фильтром по типу комнаты
+GET {{base}}/api/rooms?room_type=double
+
+### Получить один номер
+GET {{base}}/api/rooms/1
+
+### Изменить цену
+PATCH {{base}}/api/rooms/1
 Content-Type: application/json
 
-{ "title": "Изменённая запись" }
+{ "price_per_night": 5000 }
 
 ### Удалить
-DELETE {{base}}/api/items/1
+DELETE {{base}}/api/rooms/1
 
 ### После удаления должен быть 404
-GET {{base}}/api/items/1
+GET {{base}}/api/rooms/1
 
 ### Сломанный JSON, должен быть 400
-POST {{base}}/api/items
+POST {{base}}/api/rooms
 Content-Type: application/json
 
-{ "title":
+{ "room_number":
 
 ### Пустое обязательное поле, должен быть 400
-POST {{base}}/api/items
+POST {{base}}/api/rooms
 Content-Type: application/json
 
-{ "title": "" }
+{ "room_number": "", "room_type":"double","price_per_night":4500 }
+
+### Неверный тип номера, должен быть 400 с field=room_type
+
+POST {{base}}/api/rooms
+Content-Type: application/json
+
+{"room_number":"102","room_type":"penthouse","price_per_night":4500}
+
+#отриц. цена, должна быть 400 с field = price_per_night
+
+POST {{base}}/api/rooms
+Content-Type: application/json
+
+{"room_number":"103","room_type":"double","price_per_night":-1}

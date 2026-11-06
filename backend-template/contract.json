@@ -1,10 +1,16 @@
 {
   "base_url": "http://localhost:8000",
-  "resource": "items",
+  "resource": "rooms",
   "id_field": "id",
   "missing_id": "999999",
   "list_key": null,
-  "create": { "title": "Первая запись" },
-  "update": { "title": "Изменённая запись" },
-  "required_field": "title"
+  "create": { "room_number": "101", "room_type":"double","price_per_night": 4500},
+  "update": { "price_per_night": 5000 },
+  "required_field": "room_number",
+  "errors":[
+    { "body": { "room_number": "", "room_type": "double", "price_per_night": 4500 }, "field": "room_number" },
+    { "body": { "room_number": "102", "room_type": "penthouse", "price_per_night": 4500 }, "field": "room_type" },
+    { "body": { "room_number": "103", "room_type": "double", "price_per_night": -1 }, "field": "price_per_night" }
+  ],
+  "filter": { "param": "room_type", "value": "double", "other": "suite" }
 }
