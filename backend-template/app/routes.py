@@ -7,6 +7,16 @@ bp = Blueprint("api", __name__)
 
 ROOM_TYPES = {"single", "double", "suite"}
 
+def _has_overlap(room_id,check_in,check_out,exclude_booking_id = None):
+    stmt = select(Booking).where(
+        Booking.room_id == room_id,
+        Booking.check_in < check_out,
+        Booking.check_out > check_in,
+    )
+    if exclude_booking_id is not None:
+        stmt = stmt.where(Booking.id != exclude_booking_id)
+    return db.session.execute(stmt).scalars().first() is not None
+
 def _parse_date(value):
     if not isinstance(value, str):
         return None
@@ -89,6 +99,7 @@ def create_room():
 @bp.get("/api/rooms")
 def list_rooms():
     room_type = request.args.get("room_type")
+    q = request.args.get("q")
     try:
         limit = int(request.args.get("limit", 100))
         offset = int(request.args.get("offset", 0))
@@ -100,11 +111,12 @@ def list_rooms():
     stmt = select(Room)
     if room_type is not None:
         stmt = stmt.where(Room.room_type == room_type)
+    if q:
+        stmt = stmt.where(Room.room_number.ilike(f"%{q}%"))
     stmt = stmt.order_by(Room.id).offset(offset).limit(limit)
 
     rooms = db.session.execute(stmt).scalars().all()
-
-    return jsonify([r.to_dict() for r in rooms]),200
+    return jsonify([r.to_dict() for r in rooms]), 200
 
 @bp.get("/api/rooms/<int:room_id>")
 def get_room(room_id):
@@ -113,6 +125,43 @@ def get_room(room_id):
     if room is None:
         return {"error": "room not found", "field": None}, 404
     return room.to_dict(), 200
+
+from sqlalchemy import func, extract
+
+@bp.get("/api/rooms/stats")
+def room_stats():
+    stmt = (
+        select(
+            extract("year", Booking.check_in).label("year"),
+            extract("month", Booking.check_in).label("month"),
+            func.count(Booking.id).label("bookings_count"),
+            func.sum(
+                func.julianday(Booking.check_out) - func.julianday(Booking.check_in)
+            ).label("total_nights"),
+            func.avg(
+                func.julianday(Booking.check_out) - func.julianday(Booking.check_in)
+            ).label("avg_nights"),
+        )
+        .group_by(
+            extract("year", Booking.check_in),
+            extract("month", Booking.check_in),
+        )
+        .order_by(
+            extract("year", Booking.check_in),
+            extract("month", Booking.check_in),
+        )
+    )
+    rows = db.session.execute(stmt).all()
+    return jsonify([
+        {
+            "year": int(r.year),
+            "month": int(r.month),
+            "bookings_count": int(r.bookings_count),
+            "total_nights": float(r.total_nights or 0),
+            "avg_nights": float(r.avg_nights or 0),
+        }
+        for r in rows
+    ]), 200
 
 @bp.patch("/api/rooms/<int:room_id>")
 def patch_room(room_id):
@@ -158,6 +207,9 @@ def post_booking(room_id):
     if err:
         field, msg = err
         return {"error": msg, "field": field}, 400
+
+    if _has_overlap(room_id, cleaned["check_in"], cleaned["check_out"]):
+        return {"error": "booking dates overlap with an existing booking", "field": "check_in"}, 409
 
     booking = Booking(room_id=room_id, **cleaned)
     db.session.add(booking)
@@ -207,6 +259,9 @@ def patch_booking(booking_id):
     new_check_out = cleaned.get("check_out", booking.check_out)
     if new_check_out <= new_check_in:
         return {"error": "check_out must be after check_in", "field": "check_out"}, 400
+
+    if _has_overlap(booking.room_id, new_check_in, new_check_out, exclude_booking_id=booking.id):
+        return {"error": "booking dates overlap with an existing booking", "field": "check_in"}, 409
 
     for key, value in cleaned.items():
         setattr(booking, key, value)

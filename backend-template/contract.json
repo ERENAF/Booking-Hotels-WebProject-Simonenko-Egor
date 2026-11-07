@@ -18,5 +18,17 @@
     "resource": "bookings",
     "create": { "guest_name": "Иванов", "check_in": "2026-10-01", "check_out": "2026-10-05" },
     "parent_field": "room_id"
-  }
+  },
+  "openapi_path": "/static/openapi.json",
+  "search" : {"param":"q","field":"room_number"},
+  "rule": {
+    "description": "Брони одного номера не могут пересекаться по датам",
+    "parent": { "room_number": "900", "room_type": "double", "price_per_night": 1000 },
+    "setup": [
+      { "method": "POST", "path": "/api/rooms/{id}/bookings", "body": { "guest_name": "Иванов", "check_in": "2026-10-01", "check_out": "2026-10-05" } }
+    ],
+    "violate": { "method": "POST", "path": "/api/rooms/{id}/bookings", "body": { "guest_name": "Петров", "check_in": "2026-10-03", "check_out": "2026-10-07" } },
+    "expect_status": 409
+  },
+  "stats_path": "/api/rooms/stats"
 }

@@ -62,3 +62,9 @@ POST {{base}}/api/rooms
 Content-Type: application/json
 
 {"room_number":"103","room_type":"double","price_per_night":-1}
+
+### Поиск по номеру без учета регистра
+GET {{base}}/api/rooms?q=10
+
+### Статистика по месяцам
+GET {{base}}/api/rooms/stats

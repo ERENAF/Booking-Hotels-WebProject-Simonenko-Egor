@@ -1,10 +1,3 @@
-<!--
-  Это шаблон README проекта. После создания своего репозитория:
-  1. Переименовать репозиторий в backend-<фамилия>-<тема>, например backend-ivanova-library.
-  2. Заполнить разделы ниже под свою тему и удалить этот комментарий.
-  Задания лаб лежат в папке docs/, начинать с docs/README.md.
--->
-
 # Название проекта
 
 Тема №8: **Бронирование отелей**. Одна фраза: бронирование отелей для туристов.
@@ -63,6 +56,18 @@ erDiagram
         date check_out
     }
 ```
+## Индекс и EXPLAIN
+
+Частый запрос — список броней комнаты: `SELECT * FROM bookings WHERE room_id = ?`.
+На `bookings.room_id` создан индекс (в модели `index=True`, в миграции — `op.create_index`).
+
+```
+$ EXPLAIN QUERY PLAN SELECT * FROM bookings WHERE room_id = 5;
+SEARCH bookings USING INDEX ix_bookings_room_id (room_id=?)
+```
+
+`SEARCH ... USING INDEX` означает, что SQLite использует индекс `ix_bookings_room_id`,
+а не полное сканирование таблицы (`SCAN bookings`).
 
 ## Интерфейс
 

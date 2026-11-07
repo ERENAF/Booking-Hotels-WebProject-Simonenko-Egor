@@ -1,0 +1,44 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "Booking Hotels API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/rooms": {
+      "get": {
+        "summary": "Список номеров",
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "summary": "Создать номер",
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/rooms/{id}": {
+      "get": {
+        "summary": "Получить номер",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } }
+      }
+    },
+    "/api/rooms/{id}/bookings": {
+      "get": {
+        "summary": "Список броней номера",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "summary": "Создать бронь",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "201": { "description": "Created" } }
+      }
+    }
+  }
+}

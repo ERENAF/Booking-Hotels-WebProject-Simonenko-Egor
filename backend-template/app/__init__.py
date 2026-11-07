@@ -1,8 +1,9 @@
 import os
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from dotenv import load_dotenv
+from flask_swagger_ui import get_swaggerui_blueprint
 
 load_dotenv()
 
@@ -30,6 +31,22 @@ def create_app():
             cursor.close()
 
     migrate.init_app(app,db)
+
+    SWAGGER_URL = '/docs'
+    API_URL = '/static/openapi.json'
+
+    swaggerui_blueprint = get_swaggerui_blueprint(
+        SWAGGER_URL,
+        API_URL,
+        config={'app_name': "Booking Hotels API"}
+    )
+    app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+    @app.route("/static/openapi.json")
+    def serve_openapi():
+        root = os.path.dirname(os.path.abspath(__file__))   # папка app/
+        project_root = os.path.dirname(root)                 # папка backend-template/
+        return send_from_directory(project_root, "openapi.json")
 
     from .routes import bp
     app.register_blueprint(bp)
