@@ -12,7 +12,18 @@
 ## Как запустить
 
 ```bash
-# команды по порядку: от git clone до работающего сервиса
+git clone https://github.com/ERENAF/Booking-Hotels-WebProject-Simonenko-Egor.git
+cd Booking-Hotels-WebProject-Simonenko-Egor/backend-template
+
+pip install -r requirements.txt
+
+cp .env.example .env
+# copy .env.example .env          # Windows cmd
+# Copy-Item .env.example .env     # Windows PowerShell
+
+flask db upgrade
+
+python run.py
 ```
 
 Сервис работает на `http://localhost:8000`. Запросы для демонстрации лежат в `requests.http`.
